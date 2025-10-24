@@ -1,6 +1,6 @@
 """
-印章一致性验证 - 推理和可视化脚本
-支持单张图片推理、批量测试、可视化展示
+印章一致性验证 - 推理和可视化脚本（增强版）
+支持保存每对数据的详细结果（相似度、一致性概率、预测标签等）
 """
 
 import os
@@ -8,6 +8,7 @@ import time
 import torch
 import cv2
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
@@ -21,7 +22,7 @@ import seaborn as sns
 
 
 class SealVerifier:
-    """印章验证推理器"""
+    """印章验证推理器（增强版）"""
     
     def __init__(self, model_path, config=None, device=None):
         """
@@ -152,13 +153,15 @@ class SealVerifier:
         plt.show()
     
     @torch.no_grad()
-    def evaluate_testset(self, test_loader, save_dir='./eval_results'):
+    def evaluate_testset(self, test_loader, save_dir='./eval_results', 
+                        save_detailed_results=True):
         """
-        评估测试集
+        评估测试集（增强版 - 保存详细结果）
         
         Args:
             test_loader: 测试数据加载器
             save_dir: 结果保存目录
+            save_detailed_results: 是否保存每对数据的详细结果
         """
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
@@ -168,21 +171,50 @@ class SealVerifier:
         all_labels = []
         inference_times = []
         
+        # 用于保存详细结果
+        detailed_results = []
+        
         print("评估测试集...")
-        for batch in tqdm(test_loader):
+        for batch_idx, batch in enumerate(tqdm(test_loader)):
             scan = batch['scan'].to(self.device)
             template = batch['template'].to(self.device)
             labels = batch['label']
             
+            # 获取图像路径（如果有）
+            scan_paths = batch.get('scan_path', [f'scan_{batch_idx}_{i}' for i in range(len(labels))])
+            template_paths = batch.get('template_path', [f'template_{batch_idx}_{i}' for i in range(len(labels))])
+            
             start_time = time.time()
             similarity, _, _ = self.model(scan, template)
-            inference_times.append(time.time() - start_time)
+            batch_time = time.time() - start_time
+            inference_times.append(batch_time)
             
             probs = similarity.squeeze().cpu().numpy()
             preds = (probs > 0.5).astype(int)
             
-            all_probs.extend(probs)
-            all_preds.extend(preds)
+            # 保存每个样本的详细结果
+            if save_detailed_results:
+                for i in range(len(labels)):
+                    prob = float(probs[i]) if probs.ndim > 0 else float(probs)
+                    pred = int(preds[i]) if preds.ndim > 0 else int(preds)
+                    label = int(labels[i])
+                    
+                    detailed_results.append({
+                        'scan_path': scan_paths[i],
+                        'template_path': template_paths[i],
+                        'true_label': label,
+                        'true_label_text': '一致' if label == 1 else '不一致',
+                        'similarity_score': prob,
+                        'consistency_probability': prob,  # 一致性概率 = 相似度分数
+                        'predicted_label': pred,
+                        'predicted_label_text': '一致' if pred == 1 else '不一致',
+                        'confidence': prob if pred == 1 else (1 - prob),
+                        'is_correct': (pred == label),
+                        'inference_time_ms': (batch_time / len(labels)) * 1000
+                    })
+            
+            all_probs.extend(probs if probs.ndim > 0 else [probs])
+            all_preds.extend(preds if preds.ndim > 0 else [preds])
             all_labels.extend(labels.numpy())
         
         # 计算指标
@@ -209,6 +241,39 @@ class SealVerifier:
         with open(save_dir / 'test_metrics.json', 'w') as f:
             json.dump(metrics, f, indent=2)
         
+        # 保存详细结果
+        if save_detailed_results and detailed_results:
+            # 保存为CSV
+            df = pd.DataFrame(detailed_results)
+            csv_path = save_dir / 'detailed_results.csv'
+            df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+            print(f"\n详细结果已保存至CSV: {csv_path}")
+            
+            # 保存为JSON
+            json_path = save_dir / 'detailed_results.json'
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(detailed_results, f, indent=2, ensure_ascii=False)
+            print(f"详细结果已保存至JSON: {json_path}")
+            
+            # 打印统计信息
+            print(f"\n详细结果统计:")
+            print(f"总样本数: {len(detailed_results)}")
+            print(f"正确预测: {sum(r['is_correct'] for r in detailed_results)}")
+            print(f"错误预测: {sum(not r['is_correct'] for r in detailed_results)}")
+            
+            # 打印前5个样本示例
+            print(f"\n前5个样本示例:")
+            for i, result in enumerate(detailed_results[:5]):
+                print(f"\n样本 {i+1}:")
+                print(f"  扫描图: {result['scan_path']}")
+                print(f"  模板图: {result['template_path']}")
+                print(f"  真实标签: {result['true_label_text']}")
+                print(f"  相似度分数: {result['similarity_score']:.4f}")
+                print(f"  一致性概率: {result['consistency_probability']:.4f}")
+                print(f"  预测标签: {result['predicted_label_text']}")
+                print(f"  置信度: {result['confidence']:.4f}")
+                print(f"  预测正确: {'✓' if result['is_correct'] else '✗'}")
+        
         # 绘制混淆矩阵
         self._plot_confusion_matrix(all_labels, all_preds, save_dir)
         
@@ -218,7 +283,7 @@ class SealVerifier:
         # 绘制相似度分布
         self._plot_score_distribution(all_labels, all_probs, save_dir)
         
-        return metrics
+        return metrics, detailed_results
     
     def _plot_confusion_matrix(self, labels, preds, save_dir):
         """绘制混淆矩阵"""
@@ -309,12 +374,12 @@ def demo_inference():
 
 
 def evaluate_model():
-    """评估模型性能"""
+    """评估模型性能（保存详细结果）"""
     
     from seal_dataset import create_dataloaders
     
     # 配置
-    MODEL_PATH = './outputs/seal_verification2/best_model.pth'
+    MODEL_PATH = './outputs/seal_verification3/best_model.pth'
     DATA_DIR = './seal_verification_dataset'
     
     # 创建验证器
@@ -328,20 +393,28 @@ def evaluate_model():
         num_workers=4
     )
     
-    # 评估
+    # 评估（保存详细结果）
     print("\n=== 测试集评估 ===")
-    metrics = verifier.evaluate_testset(test_loader, save_dir='./eval_results')
+    metrics, detailed_results = verifier.evaluate_testset(
+        test_loader, 
+        save_dir='./eval_results',
+        save_detailed_results=True  # 启用详细结果保存
+    )
     
     # 性能检查
+    print("\n" + "="*60)
     if metrics['accuracy'] >= 0.95:
-        print(f"\n✓ 模型达到目标准确率 (≥95%): {metrics['accuracy']:.4f}")
+        print(f"✓ 模型达到目标准确率 (≥95%): {metrics['accuracy']:.4f}")
     else:
-        print(f"\n✗ 模型未达到目标准确率 (≥95%): {metrics['accuracy']:.4f}")
+        print(f"✗ 模型未达到目标准确率 (≥95%): {metrics['accuracy']:.4f}")
     
     if metrics['avg_inference_time'] <= 5.0:
         print(f"✓ 推理时间符合要求 (≤5秒): {metrics['avg_inference_time']:.2f}秒")
     else:
         print(f"✗ 推理时间超出要求 (≤5秒): {metrics['avg_inference_time']:.2f}秒")
+    print("="*60)
+    
+    return metrics, detailed_results
 
 
 if __name__ == "__main__":

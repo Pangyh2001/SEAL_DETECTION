@@ -1,5 +1,5 @@
 """
-印章一致性验证 - 数据集加载器
+印章一致性验证 - 数据集加载器（修改版 - 返回完整路径）
 """
 
 import os
@@ -75,7 +75,7 @@ class SealVerificationDataset(Dataset):
         return len(self.annotations)
     
     def __getitem__(self, idx):
-        """获取一对印章图像"""
+        """获取一对印章图像（修改版 - 返回完整路径）"""
         item = self.annotations[idx]
         
         # 构建图像路径
@@ -93,31 +93,62 @@ class SealVerificationDataset(Dataset):
         # 标签
         label = torch.tensor(item['label'], dtype=torch.long)
         
+        # ✅ 修改：返回完整路径而不是文件名
         return {
             'scan': scan_img,
             'template': template_img,
             'label': label,
-            'scan_name': item['scan'],
-            'template_name': item['template']
+            'scan_path': str(scan_path),        # ✅ 返回完整路径
+            'template_path': str(template_path), # ✅ 返回完整路径
+            'scan_name': item['scan'],           # 保留文件名（可选）
+            'template_name': item['template']    # 保留文件名（可选）
         }
 
 
+def collate_fn_with_paths(batch):
+    """
+    ✅ 自定义collate函数，保留路径信息
+    """
+    scans = torch.stack([item['scan'] for item in batch])
+    templates = torch.stack([item['template'] for item in batch])
+    labels = torch.stack([item['label'] for item in batch])
+    
+    # 保留路径列表
+    scan_paths = [item['scan_path'] for item in batch]
+    template_paths = [item['template_path'] for item in batch]
+    
+    # 可选：保留文件名
+    scan_names = [item['scan_name'] for item in batch]
+    template_names = [item['template_name'] for item in batch]
+    
+    return {
+        'scan': scans,
+        'template': templates,
+        'label': labels,
+        'scan_path': scan_paths,           # ✅ 完整路径
+        'template_path': template_paths,   # ✅ 完整路径
+        'scan_name': scan_names,           # 文件名
+        'template_name': template_names    # 文件名
+    }
+
+
 def create_dataloaders(data_dir, batch_size=16, img_size=256, num_workers=4):
-    """创建数据加载器"""
+    """创建数据加载器（修改版 - 使用自定义collate函数）"""
     
     # 创建数据集
     train_dataset = SealVerificationDataset(data_dir, split='train', img_size=img_size)
     val_dataset = SealVerificationDataset(data_dir, split='val', img_size=img_size)
     test_dataset = SealVerificationDataset(data_dir, split='test', img_size=img_size)
     
-    # 创建数据加载器
+    # ✅ 创建数据加载器 - 添加 collate_fn
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        drop_last=True
+        drop_last=True,
+        collate_fn=collate_fn_with_paths  # ✅ 使用自定义collate函数
     )
     
     val_loader = DataLoader(
@@ -125,7 +156,8 @@ def create_dataloaders(data_dir, batch_size=16, img_size=256, num_workers=4):
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
+        collate_fn=collate_fn_with_paths  # ✅ 使用自定义collate函数
     )
     
     test_loader = DataLoader(
@@ -133,7 +165,8 @@ def create_dataloaders(data_dir, batch_size=16, img_size=256, num_workers=4):
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
+        collate_fn=collate_fn_with_paths  # ✅ 使用自定义collate函数
     )
     
     return train_loader, val_loader, test_loader
@@ -191,10 +224,20 @@ if __name__ == "__main__":
     print(f"验证集批次数: {len(val_loader)}")
     print(f"测试集批次数: {len(test_loader)}")
     
-    # 测试数据加载
-    batch = next(iter(train_loader))
+    # ✅ 测试数据加载（包含路径）
+    batch = next(iter(test_loader))
     print(f"\n批次数据:")
     print(f"扫描图形状: {batch['scan'].shape}")
     print(f"模板图形状: {batch['template'].shape}")
     print(f"标签形状: {batch['label'].shape}")
     print(f"标签分布: {batch['label'].sum().item()}/{len(batch['label'])}")
+    
+    # ✅ 检查路径信息
+    print(f"\n路径信息检查:")
+    if 'scan_path' in batch:
+        print(f"✅ 包含完整路径信息")
+        print(f"示例扫描图路径: {batch['scan_path'][0]}")
+        print(f"示例模板图路径: {batch['template_path'][0]}")
+        print(f"示例文件名: {batch['scan_name'][0]}")
+    else:
+        print(f"❌ 未包含路径信息")

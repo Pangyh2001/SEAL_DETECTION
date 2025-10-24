@@ -367,7 +367,7 @@ def main():
         'save_interval': 10,
         
         # 输出目录
-        'output_dir': './outputs/seal_verification2'
+        'output_dir': './outputs/seal_verification3'
     }
     
     # 导入模块
