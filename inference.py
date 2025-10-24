@@ -419,8 +419,5 @@ def evaluate_model():
 
 if __name__ == "__main__":
     import sys
-    evaluate_model()
-    # if len(sys.argv) > 1 and sys.argv[1] == 'eval':
-    #     evaluate_model()
-    # else:
-    #     demo_inference()
+    evaluate_model()   # 批量测试集测试
+    # demo_inference()   # 测试一对
