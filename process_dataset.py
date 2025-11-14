@@ -163,7 +163,7 @@ def prepare_dataset(source_dir, output_dir, train_ratio=0.7, val_ratio=0.15):
 
 if __name__ == "__main__":
     # 配置路径
-    SOURCE_DIR = "/home/ubuntu/code/Seal_Detection/dataset/盖章数据集/真章/居中"
+    SOURCE_DIR = "dataset/盖章数据集/真章/居中"
     OUTPUT_DIR = "./seal_verification_dataset"
     
     # 准备数据集

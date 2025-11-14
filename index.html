@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>印章比对模块 | Seal Matcher</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    /* 全局样式（亮色主题） */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", sans-serif;
+      background: #f6f7fb;
+      color: #2c3e50;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 32px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 1100px;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+      border: 1px solid #e3e7ef;
+    }
+
+    /* 头部 */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .title {
+      font-size: 26px;
+      font-weight: 700;
+      color: #1f2d3d;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      margin-top: 4px;
+      color: #6b7b8c;
+    }
+
+    .status-pill {
+      font-size: 13px;
+      padding: 6px 14px;
+      background: #e8f3ff;
+      color: #1d78c1;
+      border-radius: 50px;
+      border: 1px solid #d4e7ff;
+      height: fit-content;
+    }
+
+    /* 布局 */
+    .main {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 24px;
+    }
+    @media (max-width: 900px) {
+      .main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* 上传卡片 */
+    .upload-panel {
+      background: #ffffff;
+      border: 1px solid #e6e9ef;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 700px) {
+      .upload-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .upload-card {
+      background: #fafbff;
+      border: 1px solid #e1e7f0;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+
+    .upload-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #34495e;
+    }
+
+    .drop-area {
+      border: 2px dashed #c7d1e2;
+      border-radius: 12px;
+      padding: 16px;
+      background: #fcfdff;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .drop-area:hover {
+      border-color: #4e8df5;
+    }
+    .drop-area.dragover {
+      background: #e9f1ff;
+      border-color: #4e8df5;
+    }
+
+    .drop-icon {
+      font-size: 26px;
+      margin-bottom: 6px;
+      color: #4e8df5;
+    }
+
+    .drop-main {
+      font-size: 14px;
+      font-weight: 500;
+      color: #2c3e50;
+    }
+    .drop-sub {
+      font-size: 12px;
+      color: #8a9bb0;
+    }
+
+    .drop-btn {
+      margin-top: 10px;
+      padding: 7px 16px;
+      background: #4e8df5;
+      color: white;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .drop-btn:hover {
+      background: #306fed;
+    }
+
+    /* 图片预览 */
+    .preview {
+      margin-top: 10px;
+      border: 1px solid #d8dde6;
+      border-radius: 8px;
+      overflow: hidden;
+      display: none;
+    }
+    .preview-bar {
+      background: #eef2f7;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-bottom: 1px solid #d8dde6;
+      color: #5f6e7d;
+    }
+    .preview-img-wrap {
+      background: white;
+      display: flex;
+      justify-content: center;
+      padding: 8px;
+    }
+    .preview-img {
+      max-width: 100%;
+      max-height: 200px;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    /* 右侧卡片 */
+    .panel {
+      border: 1px solid #e0e6ef;
+      background: white;
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .card-sub {
+      font-size: 12px;
+      color: #8192a3;
+      margin-bottom: 10px;
+    }
+
+    /* 滑块 */
+    .slider-block {
+      margin-bottom: 14px;
+    }
+    .slider-block label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+
+    /* 按钮组 */
+    .btn-primary {
+      background: #4e8df5;
+      border: none;
+      color: white;
+      padding: 8px 18px;
+      border-radius: 22px;
+      cursor: pointer;
+      font-size: 14px;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .btn-primary:hover {
+      background: #306fed;
+    }
+    .btn-primary:disabled {
+      background: #b7c8e3;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      border: 1px solid #c9d3e1;
+      background: #f7f9fc;
+      padding: 8px;
+      border-radius: 22px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .btn-secondary:hover {
+      background: #eef2f7;
+    }
+
+    /* 状态栏 */
+    .status {
+      font-size: 13px;
+      color: #6b7b8c;
+      margin-top: 10px;
+    }
+
+    /* 结果 */
+    .result-badge {
+      display: inline-block;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 18px;
+      font-weight: 700;
+      margin: 8px 0;
+      border: 1px solid transparent;
+    }
+
+    .same {
+      background: #e7f9ed;
+      border-color: #b9f1c9;
+      color: #2e9f50;
+    }
+    .diff {
+      background: #ffeaea;
+      border-color: #fab5b5;
+      color: #d64545;
+    }
+    .unknown {
+      background: #f3f5f9;
+      border-color: #dbe0ea;
+      color: #6e7d90;
+    }
+
+    /* 相似度进度条 */
+    .bar-bg {
+      background: #eef2f7;
+      border-radius: 6px;
+      height: 10px;
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    .bar-inner {
+      height: 100%;
+      background: linear-gradient(90deg, #ff7d4f, #4e8df5);
+      width: 0%;
+      transition: width 0.2s;
+    }
+
+  </style>
+</head>
+
+<body>
+<div class="app">
+  <!-- 头部 -->
+  <div class="header">
+    <div>
+      <div class="title">印章比对系统</div>
+      <div class="subtitle">上传两张印章图片，判断是否为同一枚印章。</div>
+    </div>
+    <div class="status-pill">前端已加载 · 等待上传</div>
+  </div>
+
+  <!-- 主体 -->
+  <div class="main">
+    <!-- 左侧上传 -->
+    <div class="upload-panel">
+      <div class="upload-grid">
+
+        <!-- 印章 A -->
+        <div class="upload-card">
+          <div class="upload-title">印章 A</div>
+          <div class="drop-area" id="drop-a">
+            <div class="drop-icon">🟥</div>
+            <div class="drop-main">拖拽或点击上传</div>
+            <div class="drop-sub">JPG / PNG</div>
+            <button class="drop-btn" id="btn-a">选择图片</button>
+            <input type="file" id="input-a" accept="image/*">
+          </div>
+
+          <div class="preview" id="preview-a">
+            <div class="preview-bar">
+              文件：<span id="name-a"></span>
+            </div>
+            <div class="preview-img-wrap">
+              <img id="img-a" class="preview-img">
+            </div>
+          </div>
+        </div>
+
+        <!-- 印章 B -->
+        <div class="upload-card">
+          <div class="upload-title">印章 B</div>
+          <div class="drop-area" id="drop-b">
+            <div class="drop-icon">🟥</div>
+            <div class="drop-main">拖拽或点击上传</div>
+            <div class="drop-sub">JPG / PNG</div>
+            <button class="drop-btn" id="btn-b">选择图片</button>
+            <input type="file" id="input-b" accept="image/*">
+          </div>
+
+          <div class="preview" id="preview-b">
+            <div class="preview-bar">
+              文件：<span id="name-b"></span>
+            </div>
+            <div class="preview-img-wrap">
+              <img id="img-b" class="preview-img">
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 右侧参数和结果 -->
+    <div>
+      <div class="panel">
+
+        <div class="card-title">比对参数</div>
+        <div class="card-sub">设置相似度阈值</div>
+
+        <div class="slider-block">
+          <label>
+            相似度阈值
+            <span id="thr-text">0.80</span>
+          </label>
+          <input type="range" value="0.8" min="0" max="1" step="0.01" id="thr-range">
+        </div>
+
+        <button class="btn-primary" id="btn-compare" disabled>开始比对</button>
+        <button class="btn-secondary" id="btn-reset">清空</button>
+
+        <div class="status" id="status-line">请先上传两张图片</div>
+
+      </div>
+
+      <!-- 结果 -->
+      <div class="panel" style="margin-top:16px">
+        <div class="card-title">比对结果</div>
+
+        <div id="result-badge" class="result-badge unknown">
+          尚未比对
+        </div>
+
+        <div>
+          相似度：<span id="score-value">-</span>
+          <div class="bar-bg">
+            <div class="bar-inner" id="score-bar"></div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
+<script>
+  /* ===== 变量 ===== */
+  let fileA = null, fileB = null;
+  const btnCompare = document.getElementById("btn-compare");
+  const thrText = document.getElementById("thr-text");
+  const thrRange = document.getElementById("thr-range");
+  const resultBadge = document.getElementById("result-badge");
+  const scoreValue = document.getElementById("score-value");
+  const scoreBar = document.getElementById("score-bar");
+  const statusLine = document.getElementById("status-line");
+
+  /* ===== 工具函数 ===== */
+  function updateButtonState() {
+    if (fileA && fileB) {
+      btnCompare.disabled = false;
+      statusLine.textContent = "可以开始比对";
+    } else {
+      btnCompare.disabled = true;
+      statusLine.textContent = "请先上传两张图片";
+    }
+  }
+
+  function loadPreview(file, imgElem, nameElem, previewElem) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      imgElem.src = e.target.result;
+      nameElem.textContent = file.name;
+      previewElem.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setupUpload(idDrop, idBtn, idInput, imgElem, nameElem, previewElem, setFile) {
+    const drop = document.getElementById(idDrop);
+    const btn = document.getElementById(idBtn);
+    const input = document.getElementById(idInput);
+
+    btn.onclick = () => input.click();
+    input.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      setFile(file);
+      loadPreview(file, imgElem, nameElem, previewElem);
+      updateButtonState();
+    };
+
+    drop.addEventListener("dragover", e => {
+      e.preventDefault();
+      drop.classList.add("dragover");
+    });
+    drop.addEventListener("dragleave", () => drop.classList.remove("dragover"));
+    drop.addEventListener("drop", e => {
+      e.preventDefault();
+      drop.classList.remove("dragover");
+
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      setFile(file);
+      loadPreview(file, imgElem, nameElem, previewElem);
+      updateButtonState();
+    });
+
+    drop.onclick = () => input.click();
+  }
+
+  setupUpload("drop-a", "btn-a", "input-a",
+              document.getElementById("img-a"),
+              document.getElementById("name-a"),
+              document.getElementById("preview-a"),
+              f => fileA = f);
+
+  setupUpload("drop-b", "btn-b", "input-b",
+              document.getElementById("img-b"),
+              document.getElementById("name-b"),
+              document.getElementById("preview-b"),
+              f => fileB = f);
+
+  /* ===== 阈值更新 ===== */
+  thrRange.oninput = () => thrText.textContent = parseFloat(thrRange.value).toFixed(2);
+
+  /* ===== 清空 ===== */
+  document.getElementById("btn-reset").onclick = () => {
+    fileA = null;
+    fileB = null;
+    document.getElementById("input-a").value = "";
+    document.getElementById("input-b").value = "";
+    document.getElementById("preview-a").style.display = "none";
+    document.getElementById("preview-b").style.display = "none";
+    resultBadge.className = "result-badge unknown";
+    resultBadge.textContent = "尚未比对";
+    scoreValue.textContent = "-";
+    scoreBar.style.width = "0%";
+    updateButtonState();
+  };
+
+  /* ===== 比对 ===== */
+  btnCompare.onclick = async () => {
+    if (!fileA || !fileB) return;
+
+    statusLine.textContent = "正在比对，请稍候…";
+
+    const form = new FormData();
+    form.append("image_a", fileA);
+    form.append("image_b", fileB);
+
+    try {
+      /* 修改为你的接口地址 */
+      const resp = await fetch("http://127.0.0.1:8000/api/compare_seal", {
+        method: "POST",
+        body: form
+      });
+
+
+      const data = await resp.json();
+      const sim = data.similarity ?? data.score ?? 0;
+      const same = data.same ?? (sim >= parseFloat(thrRange.value));
+
+      scoreValue.textContent = sim.toFixed(3);
+      scoreBar.style.width = (sim * 100) + "%";
+
+      if (same) {
+        resultBadge.className = "result-badge same";
+        resultBadge.textContent = "同一枚印章";
+      } else {
+        resultBadge.className = "result-badge diff";
+        resultBadge.textContent = "不同的印章";
+      }
+
+      statusLine.textContent = data.message || "比对完成";
+
+    } catch (err) {
+      statusLine.textContent = "请求失败，请检查服务器";
+      alert(err);
+    }
+  };
+</script>
+</body>
+</html>
