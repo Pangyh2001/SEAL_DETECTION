@@ -21,3 +21,11 @@ python train.py
 3. 测试
 ```bash
 python inference.py
+```
+
+4. 前后端
+运行后端：
+```bash
+python server.py
+```
+index.html是前端
